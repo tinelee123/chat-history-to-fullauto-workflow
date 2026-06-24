@@ -1,65 +1,90 @@
 # Script Patterns
 
-Use these patterns to generate executable workflow artifacts. Do not generate Markdown workflow documents as final artifacts.
+Four controller patterns supported by `chwflow`. Use these to decide the right architecture for any workflow.
 
 ## Prompt-Loop Controller
 
-Use when another AI agent should receive one compact prompt at a time.
+Use when another AI agent should receive one compact prompt at a time with self-review gates.
 
-Required files:
-
-- `workflow_runner.py`: executable controller script, or reuse `scripts/prompt_loop_runner.py`.
-- `workflow.json`: stable goal, constraints, steps, and acceptance criteria.
-- `state.json`: mutable runtime state created by the script.
-
-Required commands:
-
-```text
-python workflow_runner.py init --workflow workflow.json --state state.json
-python workflow_runner.py next --workflow workflow.json --state state.json --out next_prompt.txt
-python workflow_runner.py record --state state.json --status ok --output agent_output.txt
+```bash
+chw sample --out workflow.json
+chw init --workflow workflow.json --state state.json
+chw next --workflow workflow.json --state state.json --out next_prompt.txt
+# ... agent responds ...
+chw record --state state.json --status ok --output agent_result.txt
 ```
 
-Prompt contract:
+Prompt contract (embedded in every generated prompt):
+1. Review previous output against previous acceptance criteria.
+2. If previous output fails, revise before advancing.
+3. Execute only the current step.
+4. Return status: `ok`, `needs_revision`, or `blocked`.
 
-- Review previous output against previous acceptance criteria.
-- If previous output fails, revise before advancing.
-- Execute only the current step.
-- Return status: `ok`, `needs_revision`, or `blocked`.
+Python API:
+```python
+from chwflow.controllers import PromptLoopController
+ctrl = PromptLoopController.from_files("workflow.json", "state.json")
+ctrl.init()
+prompt = ctrl.next_prompt()
+ctrl.record("ok", output="agent result")
+```
 
 ## Automation Runner
 
 Use when the workflow is deterministic local/API/CI automation.
 
-Script requirements:
+```bash
+chw run --workflow automation-workflow.json
+chw run --workflow automation-workflow.json --dry-run
+```
 
-- CLI args with `--help`.
-- Dry run when actions are destructive or external.
-- Structured logs or clear progress output.
-- Exit code `0` on success and non-zero on failure.
-- Idempotency check when duplicate work is possible.
-- Configurable paths, credentials via env vars, and no hardcoded secrets.
+Step actions support:
+- `"action": "shell command"` — Execute via subprocess
+- `"action": {"shell": "..."}` — Same as above, explicit
+- `"action": {"python": "result = 2 + 3"}` — Execute inline Python
+- `"action": {"check_file": "path/to/file"}` — Verify file exists
+
+Python API:
+```python
+from chwflow.controllers import AutomationController
+ctrl = AutomationController.from_files("workflow.json")
+results = ctrl.execute()
+print(ctrl.summary())
+```
 
 ## Hybrid Handoff Runner
 
-Use when the workflow alternates between script actions and human/agent review.
+Use when the workflow alternates between script actions and human/agent review checkpoints.
 
-Script requirements:
+Steps with `"review_required": true` pause execution until approved/rejected.
 
-- Track each task state in JSON.
-- Emit the next human/agent instruction as plain text.
-- Record output/review files.
-- Require acceptance criteria before advancing.
-- Support `blocked` with a named missing input.
+Python API:
+```python
+from chwflow.controllers import HybridController
+ctrl = HybridController.from_files("workflow.json")
+results = ctrl.run_automated()
+if ctrl.pending_checkpoint:
+    ctrl.approve_checkpoint("LGTM")
+```
 
-## Generated Script Quality
+## Generator Script
 
-Every generated script should include:
+Use to programmatically create parameterized workflows and CLI scripts.
 
-- Runtime and file path.
-- Clear CLI usage.
-- Input validation.
-- State/config format.
-- Review or verification step.
-- Minimal reproducible sample command.
-- Syntax check or smoke test when possible.
+Python API:
+```python
+from chwflow.controllers import GeneratorController
+gen = GeneratorController()
+gen.generate_json("deploy", "Deploy to production", steps=[...], out_path="deploy.json")
+gen.generate_cli_script("deployer", "Production deployment tool", commands=[...], out_path="deployer.py")
+```
+
+## State Machine
+
+All patterns share the same `StateMachine` for tracking progress:
+
+- Linear advancement: `advance()`, `record("ok")`
+- Retry without advancing: `record("needs_revision")`
+- Block on missing input: `record("blocked")`
+- Rollback to any step: `rollback(target_step)`
+- Parallel branches: `start_branch()`, `advance_branch()`, `all_branches_done()`

@@ -1,0 +1,57 @@
+{
+  "name": "code-review",
+  "goal": "Produce a thorough code review of a pull request, including security, performance, readability, and testability, then suggest specific improvements with code snippets.",
+  "constraints": [
+    "Focus on factual issues: bugs, security, performance, maintainability.",
+    "Do not comment on style preferences unless they violate PEP 8.",
+    "Every suggestion must include a concrete code snippet showing the fix.",
+    "Classify issues as: critical / warning / suggestion.",
+    "If any critical issue is found, the final verdict must be REJECT."
+  ],
+  "steps": [
+    {
+      "id": "scope",
+      "title": "Parse PR metadata and changed files",
+      "objective": "Extract PR title, description, file list, and diff summary from the input.",
+      "prompt": "Given the PR description and diff, list: (1) files changed, (2) rough scope (feature/fix/refactor), (3) areas of concern (auth, DB, API, UI).",
+      "acceptance": [
+        "All changed files are listed",
+        "Scope category is identified",
+        "At least 1 area of concern is named or 'none' with justification"
+      ]
+    },
+    {
+      "id": "security",
+      "title": "Security review",
+      "objective": "Check for SQL injection, XSS, auth bypass, secrets in code, unsafe deserialization, path traversal.",
+      "prompt": "Review the diff for security vulnerabilities. For each file, check: (1) user input handling, (2) auth/authz, (3) secrets, (4) injection, (5) unsafe imports.",
+      "acceptance": [
+        "Every file has been checked against the 5 categories",
+        "Each finding includes file:line reference and severity"
+      ]
+    },
+    {
+      "id": "quality",
+      "title": "Code quality and logic review",
+      "objective": "Check for bugs, race conditions, error handling gaps, type safety, and architectural concerns.",
+      "prompt": "Review the diff for logic errors, missing error handling, type safety issues, and design problems.",
+      "acceptance": [
+        "Logic issues are identified with reproduction scenarios",
+        "Error handling gaps are enumerated",
+        "Design concerns reference specific SOLID/DRY violations if applicable"
+      ]
+    },
+    {
+      "id": "verdict",
+      "title": "Final verdict and summary",
+      "objective": "Synthesize all findings into a structured verdict with clear accept/reject decision.",
+      "prompt": "Compile all findings. For each: severity, file:line, description, suggested fix (code snippet). Provide final verdict: APPROVE / REQUEST_CHANGES / REJECT.",
+      "acceptance": [
+        "All findings from prior steps are included",
+        "Final verdict is clearly stated",
+        "If REJECT: critical issue summary is highlighted",
+        "Total output is under 800 words"
+      ]
+    }
+  ]
+}

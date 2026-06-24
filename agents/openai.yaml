@@ -1,4 +1,4 @@
 interface:
   display_name: "Conversation Workflow Generator"
-  short_description: "Turn chat history into self-reviewing workflow scripts"
-  default_prompt: "Use $conversation-workflow-generator to create an executable self-reviewing workflow script from this conversation."
+  short_description: "Turn chat history into executable self-reviewing workflow scripts (chw CLI v0.2.0)"
+  default_prompt: "Use `chw sample --out workflow.json` to create an executable self-reviewing workflow script from this conversation. Then `chw init`, `chw next`, `chw record` to execute."

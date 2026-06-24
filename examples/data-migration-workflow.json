@@ -1,0 +1,56 @@
+{
+  "name": "data-migration",
+  "goal": "Migrate a database table from schema A to schema B with zero data loss, rollback capability, and validation.",
+  "constraints": [
+    "Never delete source data until destination is verified",
+    "Every migration step must be idempotent",
+    "Must support dry-run mode",
+    "Generate a migration report with row counts and checksums"
+  ],
+  "steps": [
+    {
+      "id": "snapshot",
+      "title": "Snapshot source data",
+      "objective": "Export source table with row count and checksum.",
+      "prompt": "Export the source table to a JSON file. Record: (1) total row count, (2) SHA-256 checksum of the full export, (3) column list with types.",
+      "acceptance": [
+        "Export file exists and is valid JSON",
+        "Row count is recorded",
+        "Checksum is recorded"
+      ]
+    },
+    {
+      "id": "transform",
+      "title": "Generate and validate transform",
+      "objective": "Create the transformation script, validate it against a small sample.",
+      "prompt": "Write a Python script that transforms source schema to destination schema. Run it on 10 sample rows and output the result for manual inspection.",
+      "acceptance": [
+        "Transform script is syntactically valid",
+        "10 sample rows are transformed without error",
+        "Output format matches destination schema"
+      ]
+    },
+    {
+      "id": "migrate",
+      "title": "Execute full migration",
+      "objective": "Run the transform on all rows and insert into destination.",
+      "prompt": "Run the migration script on the full dataset. Record: rows read, rows transformed, rows inserted, rows skipped, any errors.",
+      "acceptance": [
+        "All rows are processed",
+        "Row counts match (read = transformed = inserted + skipped)",
+        "No unhandled exceptions"
+      ]
+    },
+    {
+      "id": "verify",
+      "title": "Post-migration verification",
+      "objective": "Compare source and destination to confirm zero data loss.",
+      "prompt": "Compare source export with destination: (1) row counts match, (2) checksums of equivalent records match, (3) no orphaned rows in either direction.",
+      "acceptance": [
+        "Row counts match exactly",
+        "All records are accounted for in both directions",
+        "Migration report is generated"
+      ]
+    }
+  ]
+}

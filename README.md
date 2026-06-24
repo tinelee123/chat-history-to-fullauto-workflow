@@ -1,53 +1,120 @@
-# Chat History to Full-Auto Workflow
+# chwflow — Chat History to Full-Auto Workflow
 
-A Codex skill for turning visible chat history or user-provided conversation transcripts into executable, self-reviewing workflow scripts.
+Turn chat history into **executable, self-reviewing workflow scripts** that AI agents or humans can follow step by step.
 
-Instead of producing long Markdown SOPs or playbooks, this skill generates script-based workflow controllers. The default pattern is a prompt loop: the script stores workflow state, emits the next compact prompt for an AI agent, records the previous output, and requires the next prompt to review that previous output before advancing.
+Instead of long Markdown SOPs, `chwflow` compresses a workflow into:
+1. A **JSON definition** (goals, steps, acceptance criteria)
+2. A **JSON state file** (mutable runtime progress)
+3. **Compact prompts** (current step only, with self-review gate)
 
-## What It Generates
-
-- Runnable workflow scripts such as Python, PowerShell, Bash, or JavaScript.
-- JSON workflow definitions for goals, constraints, steps, and acceptance criteria.
-- JSON state files for multi-turn execution.
-- Compact plain-text prompts for the next agent step.
-
-It does not generate Markdown workflow documents as the final artifact.
-
-## Included Files
-
-- `SKILL.md` - the Codex skill instructions.
-- `scripts/prompt_loop_runner.py` - a reusable prompt-loop controller.
-- `references/script_patterns.md` - script-only workflow generation patterns.
-- `agents/openai.yaml` - UI metadata for the skill.
-
-## Prompt Loop Example
-
-Create a sample workflow:
+## Installation
 
 ```bash
-python scripts/prompt_loop_runner.py sample --out workflow.json
+pip install chwflow
+# or with LLM extras
+pip install "chwflow[llm]"
 ```
 
-Initialize state:
+## Quick Start
+
+### 1. Create a sample workflow
 
 ```bash
-python scripts/prompt_loop_runner.py init --workflow workflow.json --state state.json
+chw sample --out my-workflow.json
 ```
 
-Generate the next prompt:
+### 2. Initialize state
 
 ```bash
-python scripts/prompt_loop_runner.py next --workflow workflow.json --state state.json --out next_prompt.txt
+chw init --workflow my-workflow.json --state state.json
 ```
 
-After the agent responds, record the result:
+### 3. Generate the next prompt for an AI agent
 
 ```bash
-python scripts/prompt_loop_runner.py record --state state.json --status ok --output agent_output.txt
+chw next --workflow my-workflow.json --state state.json --out next_prompt.txt
 ```
 
-The next generated prompt will include a self-review gate for the previous output before continuing.
+### 4. After the agent responds, record the result
 
-## Core Idea
+```bash
+chw record --state state.json --status ok --output agent_result.txt
+```
 
-Conversation history is useful, but sending a long workflow document to an agent every turn wastes context. This skill compresses the stable workflow into code and structured state, then sends only the current step, the previous result, acceptance criteria, and the next action.
+### 5. Check workflow progress
+
+```bash
+chw status --state state.json
+```
+
+## Four Controller Patterns
+
+### Prompt Loop (classic)
+
+Multi-turn AI agent workflow with self-review gates. Each prompt includes:
+- Current step objective
+- Previous step review (output vs. acceptance criteria)
+- Instructions to revise before advancing
+
+```bash
+chw next --workflow wf.json --state st.json
+chw record --state st.json --status ok --output result.txt
+```
+
+### Automation Runner
+
+Execute deterministic steps locally: shell commands, Python snippets, file checks.
+
+```bash
+chw run --workflow build-workflow.json
+chw run --workflow build-workflow.json --dry-run
+```
+
+### Hybrid Handoff
+
+Alternate between automated steps and human/agent review checkpoints. Steps marked `"review_required": true` pause for approval.
+
+### Generator
+
+Programmatically build parameterized workflow scripts and JSON configs.
+
+```python
+from chwflow.controllers import GeneratorController
+gen = GeneratorController()
+gen.generate_json("my-wf", "Do X", steps=[...], out_path="wf.json")
+gen.generate_cli_script("my-tool", "A custom CLI tool", commands=[...], out_path="my-tool.py")
+```
+
+## LLM Closed Loop (optional)
+
+With `chwflow[llm]` installed:
+
+```python
+from chwflow.adapters import OpenAIAdapter, AnthropicAdapter
+
+# OpenAI
+gpt = OpenAIAdapter(model="gpt-4o")  # Reads OPENAI_API_KEY from env
+response = gpt.call("Summarize this pull request.")
+
+# Anthropic
+claude = AnthropicAdapter(model="claude-sonnet-4-20250514")
+response = claude.call("Review this code for security vulnerabilities.")
+```
+
+## Example Workflows
+
+- `examples/code-review-workflow.json` — Multi-step PR review with security/quality/verdict phases
+- `examples/data-migration-workflow.json` — Database migration with snapshot, transform, verify
+
+## Development
+
+```bash
+git clone https://github.com/tinelee123/chat-history-to-fullauto-workflow.git
+cd chat-history-to-fullauto-workflow
+pip install -e ".[dev]"
+pytest -v
+```
+
+## License
+
+MIT — see [LICENSE](LICENSE)
